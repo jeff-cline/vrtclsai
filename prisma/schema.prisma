@@ -1,0 +1,130 @@
+// Predictive Intelligence Exchange — data model
+// One Postgres database. Models are deliberately conservative for Phase 1.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  CUSTOMER
+}
+
+enum CreditTxnKind {
+  GRANT
+  REVOKE
+  CONSUME
+  REFUND
+  ADJUSTMENT
+}
+
+enum LeadRequestStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  DELIVERED
+  REJECTED
+}
+
+model Organization {
+  id            String        @id @default(cuid())
+  name          String
+  tier          String        @default("optimized") // optimized | enterprise | strategic | partner
+  creditBalance Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  users         User[]
+  creditTxns    CreditTxn[]
+  leadRequests  LeadRequest[]
+  audiences     Audience[]
+}
+
+model User {
+  id             String        @id @default(cuid())
+  email          String        @unique
+  name           String?
+  passwordHash   String
+  role           Role          @default(CUSTOMER)
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  lastLoginAt    DateTime?
+  leadRequests   LeadRequest[]
+  grantedCredits CreditTxn[]   @relation("GrantedBy")
+  sessions       Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CreditTxn {
+  id             String        @id @default(cuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  amount         Int // positive for grants, negative for consume/revoke
+  kind           CreditTxnKind
+  note           String?
+  grantedById    String?
+  grantedBy      User?         @relation("GrantedBy", fields: [grantedById], references: [id])
+  createdAt      DateTime      @default(now())
+
+  @@index([organizationId, createdAt])
+}
+
+model LeadRequest {
+  id             String            @id @default(cuid())
+  organizationId String
+  organization   Organization      @relation(fields: [organizationId], references: [id])
+  requestedById  String
+  requestedBy    User              @relation(fields: [requestedById], references: [id])
+  industry       String
+  audienceName   String
+  filters        Json
+  estimatedSize  Int
+  confidence     Float
+  status         LeadRequestStatus @default(DRAFT)
+  creditCost     Int               @default(0)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+}
+
+model Audience {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  description    String?
+  filters        Json
+  size           Int
+  confidence     Float
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model DemoRequest {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  company   String?
+  phone     String?
+  industry  String?
+  volume    String?
+  message   String?
+  source    String? // homepage, industry page slug, etc.
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
