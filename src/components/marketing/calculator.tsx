@@ -2,196 +2,223 @@
 
 import { useMemo, useState } from "react";
 import { Section } from "@/components/ui/section";
-import { Card, CardLabel, CardTitle } from "@/components/ui/card";
+import { Card, CardLabel } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { formatCurrency, formatNumber, formatPercent } from "@/lib/utils";
+import { formatNumber } from "@/lib/utils";
+import {
+  DEMOGRAPHICS,
+  RECENCY_PRESETS,
+  VOLUME_MIN,
+  VOLUME_MAX,
+  ORDER_MINIMUM,
+  FLOOR_PRICE_PER_LEAD,
+  PREMIUM_PRICE_PER_LEAD,
+  quoteLeads,
+  type DemographicKey,
+} from "@/lib/lead-pricing";
 
-type EnrichmentKey = "demographic" | "psychographic" | "identity" | "behavioral";
+function fmtMoney(n: number, fractional = false) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: fractional ? 2 : 0,
+    maximumFractionDigits: fractional ? 2 : 0,
+  }).format(n);
+}
 
-const enrichmentLabels: Record<EnrichmentKey, { label: string; lift: number; cost: number }> = {
-  demographic: { label: "Demographic enrichment", lift: 0.12, cost: 0.35 },
-  psychographic: { label: "Psychographic overlay", lift: 0.18, cost: 0.55 },
-  identity: { label: "Identity graph resolution", lift: 0.22, cost: 0.7 },
-  behavioral: { label: "Behavioral propensity scoring", lift: 0.27, cost: 0.95 },
-};
+const DEFAULT_DEMOS: DemographicKey[] = ["age", "zip", "income", "homeowner"];
 
 export function LeadValueCalculator() {
-  const [leadAge, setLeadAge] = useState(24); // hours
-  const [volume, setVolume] = useState(2500); // leads/mo
-  const [enrichment, setEnrichment] = useState<Record<EnrichmentKey, boolean>>({
-    demographic: true,
-    psychographic: false,
-    identity: true,
-    behavioral: false,
-  });
+  const [recencyDays, setRecencyDays] = useState<number>(1);
+  const [quantity, setQuantity] = useState<number>(500);
+  const [demographics, setDemographics] = useState<DemographicKey[]>(DEFAULT_DEMOS);
 
-  const result = useMemo(() => {
-    const baseScore = Math.exp(-leadAge / 36); // 0-1
-    const enrichmentLift = (Object.keys(enrichment) as EnrichmentKey[])
-      .filter((k) => enrichment[k])
-      .reduce((s, k) => s + enrichmentLabels[k].lift, 0);
-    const enrichmentCost = (Object.keys(enrichment) as EnrichmentKey[])
-      .filter((k) => enrichment[k])
-      .reduce((s, k) => s + enrichmentLabels[k].cost, 0);
+  const quote = useMemo(
+    () => quoteLeads({ recencyDays, demographics, quantity }),
+    [recencyDays, demographics, quantity]
+  );
 
-    const probability = Math.min(0.95, baseScore * (1 + enrichmentLift));
-    const baseCostPerLead = 2.25 + enrichmentCost;
-    const monthlyCost = baseCostPerLead * volume;
-    const cacReduction = 0.18 + enrichmentLift * 0.8; // %
-    const expectedRoi = 1 + (probability * 3.4 + enrichmentLift * 1.6);
-    const confidence = Math.min(0.98, 0.62 + enrichmentLift);
-
-    let tier: "Inefficient" | "Optimized" | "Enterprise";
-    if (monthlyCost < 3000) tier = "Inefficient";
-    else if (monthlyCost < 10000) tier = "Optimized";
-    else tier = "Enterprise";
-
-    return {
-      probability,
-      monthlyCost,
-      costPerLead: baseCostPerLead,
-      cacReduction,
-      expectedRoi,
-      confidence,
-      tier,
-    };
-  }, [leadAge, volume, enrichment]);
+  const toggleDemo = (k: DemographicKey) =>
+    setDemographics((s) =>
+      s.includes(k) ? s.filter((x) => x !== k) : [...s, k]
+    );
 
   return (
     <Section
       id="calculator"
-      eyebrow="Interactive · Intelligence estimator"
-      title="Run a predictive intelligence estimate."
-      intro="Adjust the parameters that govern probability — lead freshness, volume, enrichment. The model returns conversion probability, projected CAC reduction, and expected ROI in real time."
+      eyebrow="Interactive · Lead pricing calculator"
+      title="Price your lead pull in real time."
+      intro="Tune freshness, demographic depth, and quantity. The model returns your per-lead price, total order, and where the volume floor kicks in. Premium real-time pulls top out at $25/lead; archive bulk floors at $0.44/lead."
     >
       <Card className="overflow-hidden p-0">
         <div className="grid lg:grid-cols-[1.1fr_1fr]">
+          {/* Inputs */}
           <div className="space-y-8 border-r border-platinum/5 p-8 lg:p-10">
+            {/* Recency */}
             <div>
               <div className="flex items-baseline justify-between">
-                <CardLabel>Lead age</CardLabel>
-                <span className="font-mono text-sm text-white num">
-                  {leadAge}h
+                <CardLabel>Lead recency</CardLabel>
+                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-platinum/55">
+                  Fresher → higher intent → higher value
                 </span>
               </div>
-              <input
-                aria-label="Lead age in hours"
-                type="range"
-                min={0}
-                max={168}
-                value={leadAge}
-                onChange={(e) => setLeadAge(Number(e.target.value))}
-                className="mt-3 w-full accent-ai-cyan"
-              />
-              <div className="mt-2 flex justify-between font-mono text-[10px] uppercase tracking-[0.16em] text-platinum/45">
-                <span>0h · live</span>
-                <span>72h · decaying</span>
-                <span>168h · stale</span>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-baseline justify-between">
-                <CardLabel>Monthly lead volume</CardLabel>
-                <span className="font-mono text-sm text-white num">
-                  {formatNumber(volume)}
-                </span>
-              </div>
-              <input
-                aria-label="Monthly lead volume"
-                type="range"
-                min={250}
-                max={50000}
-                step={250}
-                value={volume}
-                onChange={(e) => setVolume(Number(e.target.value))}
-                className="mt-3 w-full accent-ai-cyan"
-              />
-              <div className="mt-2 flex justify-between font-mono text-[10px] uppercase tracking-[0.16em] text-platinum/45">
-                <span>250</span>
-                <span>10k</span>
-                <span>50k</span>
-              </div>
-            </div>
-
-            <div>
-              <CardLabel>Enrichment layers</CardLabel>
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                {(Object.keys(enrichmentLabels) as EnrichmentKey[]).map((k) => {
-                  const active = enrichment[k];
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {RECENCY_PRESETS.map((p) => {
+                  const active = recencyDays === p.days;
                   return (
                     <button
-                      key={k}
+                      key={p.days}
                       type="button"
-                      onClick={() =>
-                        setEnrichment((s) => ({ ...s, [k]: !s[k] }))
-                      }
-                      className={`flex items-center justify-between rounded-md border px-3 py-2.5 text-left text-sm transition-colors ${
+                      onClick={() => setRecencyDays(p.days)}
+                      className={`flex flex-col rounded-md border px-3 py-3 text-left transition-colors ${
                         active
-                          ? "border-ai-cyan/50 bg-ai-cyan/10 text-white"
+                          ? "border-ai-cyan/60 bg-ai-cyan/10 text-white"
                           : "border-platinum/10 bg-navy-700/40 text-platinum/70 hover:border-platinum/30"
                       }`}
                     >
-                      <span>{enrichmentLabels[k].label}</span>
-                      <span
-                        className={`font-mono text-[10px] ${
-                          active ? "text-ai-cyan" : "text-platinum/40"
-                        }`}
-                      >
-                        {active ? "ON" : "OFF"}
+                      <span className="font-display text-sm font-semibold">{p.label}</span>
+                      <span className="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-platinum/55">
+                        {p.sub}
                       </span>
                     </button>
                   );
                 })}
               </div>
             </div>
+
+            {/* Demographics */}
+            <div>
+              <div className="flex items-baseline justify-between">
+                <CardLabel>Demographic depth</CardLabel>
+                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-platinum/55">
+                  {demographics.length} selected
+                </span>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {DEMOGRAPHICS.map((d) => {
+                  const active = demographics.includes(d.key);
+                  return (
+                    <button
+                      key={d.key}
+                      type="button"
+                      onClick={() => toggleDemo(d.key)}
+                      className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                        active
+                          ? "border-ai-cyan/60 bg-ai-cyan/10 text-white"
+                          : "border-platinum/10 bg-navy-700/40 text-platinum/70 hover:border-platinum/30"
+                      }`}
+                    >
+                      {d.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.14em] text-platinum/45">
+                Richer demographics carry higher market value — pricing reflects
+                the cumulative cost of appended data.
+              </p>
+            </div>
+
+            {/* Quantity */}
+            <div>
+              <div className="flex items-baseline justify-between">
+                <CardLabel>Order quantity</CardLabel>
+                <span className="font-mono text-sm text-white num">
+                  {formatNumber(quantity)} leads
+                </span>
+              </div>
+              <input
+                aria-label="Order quantity"
+                type="range"
+                min={VOLUME_MIN}
+                max={VOLUME_MAX}
+                step={50}
+                value={quantity}
+                onChange={(e) => setQuantity(Number(e.target.value))}
+                className="mt-3 w-full accent-ai-cyan"
+              />
+              <div className="mt-2 flex justify-between font-mono text-[10px] uppercase tracking-[0.16em] text-platinum/45">
+                <span>{formatNumber(VOLUME_MIN)} · premium</span>
+                <span>10k</span>
+                <span>{formatNumber(VOLUME_MAX)} · bulk</span>
+              </div>
+            </div>
           </div>
 
+          {/* Output */}
           <div className="space-y-6 bg-navy-900/40 p-8 lg:p-10">
+            <div className="rounded-lg border border-platinum/10 bg-navy-800/60 p-5">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-ai-cyan">
+                  {quote.tier}
+                </span>
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-platinum/55">
+                  Range {fmtMoney(FLOOR_PRICE_PER_LEAD, true)} – {fmtMoney(PREMIUM_PRICE_PER_LEAD)}
+                </span>
+              </div>
+              <div className="mt-3 font-display text-5xl font-semibold text-white num">
+                {fmtMoney(quote.pricePerLead, true)}
+                <span className="ml-2 align-baseline font-mono text-xs uppercase tracking-[0.2em] text-platinum/50">
+                  / lead
+                </span>
+              </div>
+              <p className="mt-2 text-sm text-platinum/65">
+                {quote.tier === "Real-time premium" &&
+                  "Real-time delivery on high-intent records. Daily push, freshest available, full demographic stack."}
+                {quote.tier === "Performance" &&
+                  "Recent records with rich appends — strong fit for active outbound and qualified retargeting cohorts."}
+                {quote.tier === "Volume" &&
+                  "Mid-aged records at scale. Optimized for nurture sequences and look-alike modeling."}
+                {quote.tier === "Archive bulk" &&
+                  "Older, lightly-appended records at the platform floor — bulk targeting and broad-reach campaigns."}
+              </p>
+            </div>
+
             <ResultRow
-              label="Conversion probability"
-              value={formatPercent(result.probability)}
+              label="Per-lead price"
+              value={fmtMoney(quote.pricePerLead, true)}
+            />
+            <ResultRow
+              label="Subtotal"
+              value={fmtMoney(quote.subtotal)}
+              dim={quote.minimumApplied}
+            />
+            <ResultRow
+              label="Order total"
+              value={fmtMoney(quote.orderTotal)}
               accent="cyan"
             />
-            <ResultRow
-              label="Predictive confidence"
-              value={formatPercent(result.confidence)}
-            />
-            <ResultRow
-              label="Projected CAC reduction"
-              value={formatPercent(result.cacReduction)}
-              accent="green"
-            />
-            <ResultRow
-              label="Expected ROAS"
-              value={`${result.expectedRoi.toFixed(2)}x`}
-              accent="green"
-            />
-            <ResultRow
-              label="Cost per lead (est.)"
-              value={formatCurrency(result.costPerLead)}
-            />
-            <ResultRow
-              label="Estimated monthly spend"
-              value={formatCurrency(result.monthlyCost)}
-            />
+            {quote.minimumApplied ? (
+              <ResultRow
+                label="Effective per-lead"
+                value={fmtMoney(quote.effectivePerLead, true)}
+                accent="gold"
+              />
+            ) : null}
+
+            {quote.minimumApplied && (
+              <div className="rounded-md border border-ai-gold/40 bg-ai-gold/10 p-4 text-sm text-ai-gold">
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em]">
+                  {fmtMoney(ORDER_MINIMUM)} order minimum
+                </div>
+                <p className="mt-1.5 text-platinum/75">
+                  Pulling {formatNumber(quantity)} leads costs us the same operational
+                  effort as pulling thousands. Orders below {fmtMoney(ORDER_MINIMUM)}{" "}
+                  are billed at the minimum — increase quantity to lower your effective
+                  per-lead price.
+                </p>
+              </div>
+            )}
 
             <div className="rounded-lg border border-platinum/10 bg-navy-800/60 p-5">
               <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-ai-cyan">
-                Tier recommendation
-              </div>
-              <div className="mt-2 font-display text-2xl font-semibold text-white">
-                {result.tier} tier
+                Ready to move
               </div>
               <p className="mt-2 text-sm text-platinum/65">
-                {result.tier === "Inefficient" &&
-                  "This spend profile under-utilizes the platform. Increase volume or layer in identity + behavioral enrichment to unlock probability scoring at scale."}
-                {result.tier === "Optimized" &&
-                  "Strong fit. Layered enrichment + predictive scoring unlocks meaningful CAC reduction with manageable variance."}
-                {result.tier === "Enterprise" &&
-                  "Enterprise scale. Engage your account team for dedicated infrastructure, custom model governance, and quarterly intelligence reviews."}
+                Lock in this configuration as a formal quote, or talk to the team
+                about enterprise volume and recurring delivery.
               </p>
-              <div className="mt-5 flex gap-2">
+              <div className="mt-4 flex gap-2">
                 <Button href="/quote" size="sm">
                   Get a Quote
                 </Button>
@@ -211,15 +238,27 @@ function ResultRow({
   label,
   value,
   accent,
+  dim,
 }: {
   label: string;
   value: string;
-  accent?: "cyan" | "green";
+  accent?: "cyan" | "green" | "gold";
+  dim?: boolean;
 }) {
   const color =
-    accent === "cyan" ? "text-ai-cyan" : accent === "green" ? "text-ai-green" : "text-white";
+    accent === "cyan"
+      ? "text-ai-cyan"
+      : accent === "green"
+        ? "text-ai-green"
+        : accent === "gold"
+          ? "text-ai-gold"
+          : "text-white";
   return (
-    <div className="flex items-baseline justify-between border-b border-platinum/5 pb-3">
+    <div
+      className={`flex items-baseline justify-between border-b border-platinum/5 pb-3 ${
+        dim ? "opacity-60" : ""
+      }`}
+    >
       <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-platinum/60">
         {label}
       </span>
