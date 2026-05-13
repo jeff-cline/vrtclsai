@@ -55,16 +55,17 @@ model Organization {
 }
 
 model User {
-  id             String        @id @default(cuid())
-  email          String        @unique
-  name           String?
-  passwordHash   String
-  role           Role          @default(CUSTOMER)
-  organizationId String?
-  organization   Organization? @relation(fields: [organizationId], references: [id])
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  lastLoginAt    DateTime?
+  id                 String        @id @default(cuid())
+  email              String        @unique
+  name               String?
+  passwordHash       String
+  mustChangePassword Boolean       @default(false)
+  role               Role          @default(CUSTOMER)
+  organizationId     String?
+  organization       Organization? @relation(fields: [organizationId], references: [id])
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  lastLoginAt        DateTime?
   orders         Order[]       @relation("OrderRequestedBy")
   grantedCredits CreditTxn[]   @relation("GrantedBy")
   uploadedFiles  OrderFile[]   @relation("OrderFileUploadedBy")

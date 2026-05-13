@@ -5,26 +5,48 @@ const prisma = new PrismaClient();
 
 async function main() {
   const adminEmail = (process.env.SEED_ADMIN_EMAIL ?? "jeff.cline@me.com").toLowerCase();
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "ChangeMeNow!42";
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "TEMP!234";
   const adminName = process.env.SEED_ADMIN_NAME ?? "Jeff Cline";
 
-  if (!process.env.SEED_ADMIN_PASSWORD) {
-    console.warn(
-      "[seed] SEED_ADMIN_PASSWORD not set — using fallback. Change it immediately after first login."
-    );
-  }
-
+  // Issue a temporary password only when the admin doesn't exist yet, or when
+  // the existing admin hasn't completed the forced password change. Once they
+  // change it, future seed runs leave the account alone.
   const adminHash = await bcrypt.hash(adminPassword, 12);
-  const admin = await prisma.user.upsert({
-    where: { email: adminEmail },
-    update: { passwordHash: adminHash, role: "ADMIN", name: adminName },
-    create: {
-      email: adminEmail,
-      name: adminName,
-      passwordHash: adminHash,
-      role: "ADMIN",
-    },
-  });
+  const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
+
+  // The admin should be on the temp password if any of:
+  //   (a) the row doesn't exist yet,
+  //   (b) it still has mustChangePassword=true (they haven't completed the flow),
+  //   (c) they have never signed in (lastLoginAt is null) — covers the case
+  //       where this column was just added by a schema push and the existing
+  //       admin row predates the forced-change flow.
+  // Once they've signed in *and* chosen their own password, future seed runs
+  // leave the account alone.
+  let admin;
+  if (!existingAdmin) {
+    admin = await prisma.user.create({
+      data: {
+        email: adminEmail,
+        name: adminName,
+        passwordHash: adminHash,
+        role: "ADMIN",
+        mustChangePassword: true,
+      },
+    });
+    console.log(`[seed] admin created with temporary password — will be forced to change on first login`);
+  } else if (existingAdmin.mustChangePassword || !existingAdmin.lastLoginAt) {
+    admin = await prisma.user.update({
+      where: { email: adminEmail },
+      data: { passwordHash: adminHash, role: "ADMIN", name: adminName, mustChangePassword: true },
+    });
+    console.log(`[seed] admin still on temporary password — refreshed temp hash`);
+  } else {
+    admin = await prisma.user.update({
+      where: { email: adminEmail },
+      data: { role: "ADMIN", name: adminName },
+    });
+    console.log(`[seed] admin already chose a password — left unchanged`);
+  }
 
   // Demo customer organization
   const acme = await prisma.organization.upsert({
@@ -247,6 +269,7 @@ async function main() {
   console.log(
     `[seed] OK · admin: ${adminEmail} · orgs: 2 · sample orders + delivery preferences seeded · demo passwords 'DemoManager!1' / 'DemoCustomer!1'`
   );
+  void admin;
 }
 
 main()

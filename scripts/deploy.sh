@@ -14,6 +14,9 @@ npm install --legacy-peer-deps --no-audit --no-fund
 echo "→ Applying schema migrations…"
 npm run db:push
 
+echo "→ Seeding baseline data (idempotent)…"
+npm run db:seed
+
 echo "→ Building…"
 npm run build
 
