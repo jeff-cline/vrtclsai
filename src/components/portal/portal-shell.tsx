@@ -15,24 +15,25 @@ export function PortalShell({
     role === "ADMIN"
       ? [
           { href: "/admin", label: "Dashboard" },
+          { href: "/admin/orders", label: "Orders" },
           { href: "/admin/users", label: "Users" },
           { href: "/admin/credits", label: "Credits" },
-          { href: "/admin/demo-requests", label: "Demo Inbox" },
+          { href: "/admin/inbox", label: "Lead inbox" },
           { href: "/admin/analytics", label: "Analytics" },
         ]
       : role === "MANAGER"
       ? [
           { href: "/manager", label: "Overview" },
           { href: "/manager/team", label: "Team" },
-          { href: "/manager/approvals", label: "Approvals" },
+          { href: "/manager/orders", label: "Team orders" },
           { href: "/manager/usage", label: "Usage" },
         ]
       : [
           { href: "/portal", label: "Dashboard" },
-          { href: "/portal/audiences", label: "Audiences" },
-          { href: "/portal/requests", label: "Lead Requests" },
-          { href: "/portal/downloads", label: "Downloads" },
-          { href: "/portal/api", label: "API Access" },
+          { href: "/portal/order", label: "Place order" },
+          { href: "/portal/orders", label: "My orders" },
+          { href: "/portal/delivery", label: "Delivery" },
+          { href: "/portal/api", label: "API access" },
         ];
 
   const accent =

@@ -1,20 +1,31 @@
+import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { PortalHeader } from "@/components/portal/portal-header";
 import { Card, CardLabel, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { formatNumber } from "@/lib/utils";
+
+const statusTone: Record<string, "cyan" | "green" | "gold" | "neutral"> = {
+  DRAFT: "neutral",
+  PENDING: "gold",
+  IN_PROGRESS: "cyan",
+  DELIVERED: "green",
+  CANCELED: "neutral",
+};
 
 export default async function ManagerPage() {
   const session = await auth();
   const orgId = (session?.user as { organizationId?: string | null } | undefined)?.organizationId;
-  const [org, users, recentReq] = orgId
+  const [org, users, recentOrders] = orgId
     ? await Promise.all([
         prisma.organization.findUnique({ where: { id: orgId } }),
         prisma.user.findMany({ where: { organizationId: orgId } }),
-        prisma.leadRequest.findMany({
+        prisma.order.findMany({
           where: { organizationId: orgId },
           orderBy: { createdAt: "desc" },
-          take: 5,
+          take: 8,
+          include: { requestedBy: true },
         }),
       ])
     : [null, [], []];
@@ -24,13 +35,13 @@ export default async function ManagerPage() {
       <PortalHeader
         eyebrow="Manager · Team oversight"
         title={`${org?.name ?? "Organization"} overview`}
-        subtitle="Team utilization, approval queue, and intelligence consumption."
+        subtitle="Team activity, recent orders, and intelligence consumption."
         tone="cyan"
       />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Team size" value={formatNumber(users.length)} />
         <Stat label="Credits available" value={formatNumber(org?.creditBalance ?? 0)} accent="cyan" />
-        <Stat label="Active requests" value={formatNumber(recentReq.length)} />
+        <Stat label="Recent orders" value={formatNumber(recentOrders.length)} />
         <Stat label="Tier" value={(org?.tier ?? "—").toUpperCase()} />
       </div>
 
@@ -40,7 +51,10 @@ export default async function ManagerPage() {
           <CardTitle className="mt-2">Active users</CardTitle>
           <ul className="mt-4 space-y-2 text-sm">
             {users.map((u) => (
-              <li key={u.id} className="flex items-center justify-between border-b border-platinum/5 pb-2 last:border-0">
+              <li
+                key={u.id}
+                className="flex items-center justify-between border-b border-platinum/5 pb-2 last:border-0"
+              >
                 <div>
                   <div className="text-white">{u.name ?? u.email}</div>
                   <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-platinum/50">
@@ -52,28 +66,35 @@ export default async function ManagerPage() {
                 </div>
               </li>
             ))}
-            {users.length === 0 && (
-              <li className="text-platinum/55">No team members yet.</li>
-            )}
+            {users.length === 0 && <li className="text-platinum/55">No team members yet.</li>}
           </ul>
         </Card>
         <Card>
-          <CardLabel>Approval queue</CardLabel>
-          <CardTitle className="mt-2">Pending requests</CardTitle>
+          <CardLabel>Recent orders · team-wide</CardLabel>
+          <CardTitle className="mt-2">Pipeline</CardTitle>
           <ul className="mt-4 space-y-2 text-sm">
-            {recentReq.map((r) => (
-              <li key={r.id} className="flex items-center justify-between border-b border-platinum/5 pb-2 last:border-0">
+            {recentOrders.map((o) => (
+              <li
+                key={o.id}
+                className="flex items-center justify-between border-b border-platinum/5 pb-2 last:border-0"
+              >
                 <div>
-                  <div className="text-white">{r.audienceName}</div>
+                  <Link
+                    href={`/portal/orders/${o.id}`}
+                    className="text-white hover:text-ai-cyan"
+                  >
+                    {o.industry}
+                    {o.region ? <span className="text-platinum/55"> · {o.region}</span> : null}
+                  </Link>
                   <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-platinum/55">
-                    {r.industry} · {r.status.toLowerCase()}
+                    {formatNumber(o.volume)} records · {o.requestedBy.email}
                   </div>
                 </div>
-                <div className="font-display text-sm text-ai-cyan num">{r.estimatedSize}</div>
+                <Badge tone={statusTone[o.status] ?? "neutral"}>{o.status.toLowerCase()}</Badge>
               </li>
             ))}
-            {recentReq.length === 0 && (
-              <li className="text-platinum/55">No requests in queue.</li>
+            {recentOrders.length === 0 && (
+              <li className="text-platinum/55">No orders in this organization yet.</li>
             )}
           </ul>
         </Card>

@@ -20,6 +20,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/about",
     "/contact",
     "/demo",
+    "/quote",
   ];
 
   const entries: MetadataRoute.Sitemap = staticPaths.map((p) => ({

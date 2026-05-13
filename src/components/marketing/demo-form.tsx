@@ -5,7 +5,15 @@ import { Button } from "@/components/ui/button";
 import { CardLabel, CardTitle } from "@/components/ui/card";
 import { submitDemoRequest } from "@/app/actions/demo";
 
-export function DemoRequestForm() {
+export function DemoRequestForm({
+  source = "demo",
+  submitLabel = "Submit request →",
+  industries,
+}: {
+  source?: string;
+  submitLabel?: string;
+  industries?: string[];
+}) {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -15,6 +23,7 @@ export function DemoRequestForm() {
     setSubmitting(true);
     setError(null);
     const fd = new FormData(e.currentTarget);
+    fd.set("source", source);
     const res = await submitDemoRequest(fd);
     setSubmitting(false);
     if (res.ok) setSuccess(true);
@@ -34,41 +43,46 @@ export function DemoRequestForm() {
     );
   }
 
+  const industryOptions = industries ?? [
+    "",
+    "Healthcare",
+    "Real Estate",
+    "Finance",
+    "Insurance",
+    "Legal",
+    "Luxury Travel",
+    "Political",
+    "B2B SaaS",
+    "Automotive",
+    "Private Equity",
+    "Wellness & Longevity",
+    "Home Services",
+    "Other",
+  ];
+
   return (
     <form onSubmit={onSubmit} className="space-y-5">
-      <CardLabel>Enterprise demo request</CardLabel>
+      <CardLabel>{source === "quote" ? "Get a quote" : "Enterprise demo request"}</CardLabel>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field name="name" label="Full name" required />
         <Field name="email" label="Business email" type="email" required />
         <Field name="company" label="Company" />
         <Field name="phone" label="Phone" type="tel" />
-        <Select
-          name="industry"
-          label="Industry"
-          options={[
-            "",
-            "Healthcare",
-            "Real Estate",
-            "Finance",
-            "Insurance",
-            "Legal",
-            "Luxury Travel",
-            "Political",
-            "B2B SaaS",
-            "Automotive",
-            "Private Equity",
-            "Wellness & Longevity",
-            "Home Services",
-            "Other",
-          ]}
-        />
+        <Select name="industry" label="Industry" options={industryOptions} />
         <Select
           name="volume"
-          label="Monthly lead volume"
+          label="Estimated monthly volume"
           options={["", "<1k", "1k–10k", "10k–50k", "50k–250k", "250k+"]}
         />
       </div>
-      <Textarea name="message" label="What are you trying to accomplish?" />
+      <Textarea
+        name="message"
+        label={
+          source === "quote"
+            ? "Describe what you need — geography, audience, timing, delivery method"
+            : "What are you trying to accomplish?"
+        }
+      />
       {error && (
         <div className="rounded-md border border-ai-gold/40 bg-ai-gold/10 px-3 py-2 text-sm text-ai-gold">
           {error}
@@ -76,11 +90,9 @@ export function DemoRequestForm() {
       )}
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={submitting}>
-          {submitting ? "Submitting…" : "Submit request →"}
+          {submitting ? "Submitting…" : submitLabel}
         </Button>
-        <p className="text-xs text-platinum/45">
-          We respond within one business day.
-        </p>
+        <p className="text-xs text-platinum/45">We respond within one business day.</p>
       </div>
     </form>
   );

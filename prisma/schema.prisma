@@ -1,5 +1,6 @@
 // Predictive Intelligence Exchange — data model
-// One Postgres database. Models are deliberately conservative for Phase 1.
+// Lead-gen + quote/order flow + manual credit issuance + file/endpoint delivery.
+// Third-party data and delivery infrastructure live outside this system.
 
 generator client {
   provider = "prisma-client-js"
@@ -24,25 +25,33 @@ enum CreditTxnKind {
   ADJUSTMENT
 }
 
-enum LeadRequestStatus {
-  DRAFT
-  PENDING
-  APPROVED
-  DELIVERED
-  REJECTED
+enum OrderStatus {
+  DRAFT          // saved in-progress quote, no credits deducted yet
+  PENDING        // customer placed the order, credits deducted, awaiting fulfillment
+  IN_PROGRESS    // admin actively fulfilling
+  DELIVERED      // complete
+  CANCELED       // canceled / refunded
+}
+
+enum DeliveryMethod {
+  FILE_DOWNLOAD  // admin uploads file(s) to the order, customer downloads from portal
+  PING_POST      // POST records to customer-provided HTTPS endpoint
+  SFTP           // SFTP push to customer-provided server
+  API_PULL       // customer pulls from our API
+  CUSTOM         // 3rd-party-mediated delivery (cost not included disclaimer applies)
 }
 
 model Organization {
-  id            String        @id @default(cuid())
+  id            String              @id @default(cuid())
   name          String
-  tier          String        @default("optimized") // optimized | enterprise | strategic | partner
-  creditBalance Int           @default(0)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  tier          String              @default("optimized")
+  creditBalance Int                 @default(0)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
   users         User[]
   creditTxns    CreditTxn[]
-  leadRequests  LeadRequest[]
-  audiences     Audience[]
+  orders        Order[]
+  delivery      DeliveryPreference?
 }
 
 model User {
@@ -56,8 +65,9 @@ model User {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   lastLoginAt    DateTime?
-  leadRequests   LeadRequest[]
+  orders         Order[]       @relation("OrderRequestedBy")
   grantedCredits CreditTxn[]   @relation("GrantedBy")
+  uploadedFiles  OrderFile[]   @relation("OrderFileUploadedBy")
   sessions       Session[]
 }
 
@@ -74,9 +84,10 @@ model CreditTxn {
   id             String        @id @default(cuid())
   organizationId String
   organization   Organization  @relation(fields: [organizationId], references: [id])
-  amount         Int // positive for grants, negative for consume/revoke
+  amount         Int
   kind           CreditTxnKind
   note           String?
+  orderId        String?
   grantedById    String?
   grantedBy      User?         @relation("GrantedBy", fields: [grantedById], references: [id])
   createdAt      DateTime      @default(now())
@@ -84,34 +95,55 @@ model CreditTxn {
   @@index([organizationId, createdAt])
 }
 
-model LeadRequest {
-  id             String            @id @default(cuid())
-  organizationId String
-  organization   Organization      @relation(fields: [organizationId], references: [id])
-  requestedById  String
-  requestedBy    User              @relation(fields: [requestedById], references: [id])
-  industry       String
-  audienceName   String
-  filters        Json
-  estimatedSize  Int
-  confidence     Float
-  status         LeadRequestStatus @default(DRAFT)
-  creditCost     Int               @default(0)
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+model Order {
+  id               String         @id @default(cuid())
+  organizationId   String
+  organization     Organization   @relation(fields: [organizationId], references: [id])
+  requestedById    String
+  requestedBy      User           @relation("OrderRequestedBy", fields: [requestedById], references: [id])
+  industry         String
+  region           String?
+  volume           Int            // requested number of records
+  filters          Json
+  creditCost       Int            @default(0)
+  status           OrderStatus    @default(DRAFT)
+  deliveryMethod   DeliveryMethod @default(FILE_DOWNLOAD)
+  deliveryEndpoint String?
+  deliveryNotes    String?
+  adminNotes       String?
+  files            OrderFile[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  acceptedAt       DateTime?
+  deliveredAt      DateTime?
+
+  @@index([organizationId, status])
+  @@index([status, createdAt])
 }
 
-model Audience {
-  id             String       @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  name           String
-  description    String?
-  filters        Json
-  size           Int
-  confidence     Float
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+model OrderFile {
+  id           String   @id @default(cuid())
+  orderId      String
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  filename     String
+  storagePath  String
+  mimeType     String
+  sizeBytes    Int
+  uploadedById String?
+  uploadedBy   User?    @relation("OrderFileUploadedBy", fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@index([orderId, createdAt])
+}
+
+model DeliveryPreference {
+  id              String         @id @default(cuid())
+  organizationId  String         @unique
+  organization    Organization   @relation(fields: [organizationId], references: [id])
+  method          DeliveryMethod @default(FILE_DOWNLOAD)
+  endpoint        String?
+  notes           String?
+  updatedAt       DateTime       @updatedAt
 }
 
 model DemoRequest {
@@ -123,7 +155,7 @@ model DemoRequest {
   industry  String?
   volume    String?
   message   String?
-  source    String? // homepage, industry page slug, etc.
+  source    String? // "quote" | "demo" | other
   createdAt DateTime @default(now())
 
   @@index([createdAt])

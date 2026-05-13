@@ -192,11 +192,11 @@ export function LeadValueCalculator() {
                   "Enterprise scale. Engage your account team for dedicated infrastructure, custom model governance, and quarterly intelligence reviews."}
               </p>
               <div className="mt-5 flex gap-2">
-                <Button href="/demo" size="sm">
-                  Request Enterprise Demo
+                <Button href="/quote" size="sm">
+                  Get a Quote
                 </Button>
-                <Button href="/research" variant="outline" size="sm">
-                  Methodology
+                <Button href="/demo" variant="outline" size="sm">
+                  Enterprise Demo
                 </Button>
               </div>
             </div>

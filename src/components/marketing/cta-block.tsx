@@ -22,11 +22,11 @@ export function CtaBlock() {
             your own audience.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Button href={site.cta.secondary.href} size="lg">
-              Request Enterprise Demo →
+            <Button href={site.cta.primary.href} size="lg">
+              {site.cta.primary.label} →
             </Button>
-            <Button href={site.cta.tertiary.href} variant="outline" size="lg">
-              {site.cta.tertiary.label}
+            <Button href={site.cta.secondary.href} variant="outline" size="lg">
+              {site.cta.secondary.label}
             </Button>
           </div>
         </div>

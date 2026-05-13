@@ -30,6 +30,9 @@ export function Hero() {
           <Button href={site.cta.secondary.href} variant="outline" size="lg">
             {site.cta.secondary.label}
           </Button>
+          <Button href={site.cta.tertiary.href} variant="ghost" size="lg">
+            {site.cta.tertiary.label}
+          </Button>
         </div>
 
         <div className="mt-16 grid max-w-5xl grid-cols-2 gap-px overflow-hidden rounded-lg border border-platinum/10 bg-platinum/10 sm:grid-cols-4">

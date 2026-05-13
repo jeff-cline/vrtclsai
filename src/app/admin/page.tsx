@@ -1,94 +1,108 @@
+import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { PortalHeader } from "@/components/portal/portal-header";
 import { Card, CardLabel, CardTitle } from "@/components/ui/card";
-import { ConfidenceRadarChart } from "@/components/charts/confidence-radar";
-import { RoiAccelerationChart } from "@/components/charts/roi-acceleration";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { CacReductionChart } from "@/components/charts/cac-reduction";
 import { formatNumber } from "@/lib/utils";
 
+const statusTone: Record<string, "cyan" | "green" | "gold" | "neutral"> = {
+  DRAFT: "neutral",
+  PENDING: "gold",
+  IN_PROGRESS: "cyan",
+  DELIVERED: "green",
+  CANCELED: "neutral",
+};
+
 export default async function AdminDashboard() {
-  const [userCount, orgCount, demoCount, recentDemo, recentCredit] = await Promise.all([
-    prisma.user.count(),
-    prisma.organization.count(),
-    prisma.demoRequest.count(),
-    prisma.demoRequest.findMany({ take: 6, orderBy: { createdAt: "desc" } }),
-    prisma.creditTxn.findMany({
-      take: 6,
-      orderBy: { createdAt: "desc" },
-      include: { organization: true, grantedBy: true },
-    }),
-  ]);
+  const [userCount, orgCount, inboxCount, openOrderCount, pendingOrders, recentTxns, recentInbox] =
+    await Promise.all([
+      prisma.user.count(),
+      prisma.organization.count(),
+      prisma.demoRequest.count(),
+      prisma.order.count({ where: { status: { in: ["PENDING", "IN_PROGRESS"] } } }),
+      prisma.order.findMany({
+        where: { status: { in: ["PENDING", "IN_PROGRESS"] } },
+        orderBy: { acceptedAt: "asc" },
+        take: 8,
+        include: { organization: true, requestedBy: true, _count: { select: { files: true } } },
+      }),
+      prisma.creditTxn.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 6,
+        include: { organization: true, grantedBy: true },
+      }),
+      prisma.demoRequest.findMany({ orderBy: { createdAt: "desc" }, take: 6 }),
+    ]);
 
   return (
     <div>
       <PortalHeader
         eyebrow="Admin · Control plane"
         title="System overview"
-        subtitle="Real-time state of users, organizations, demo inbox, credits, and platform analytics."
+        subtitle="Inbound leads, fulfillment queue, credit ledger, and platform-wide state."
         tone="gold"
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Users" value={formatNumber(userCount)} />
         <Stat label="Organizations" value={formatNumber(orgCount)} />
-        <Stat label="Demo inbox" value={formatNumber(demoCount)} accent="cyan" />
-        <Stat label="Credits issued · 30d" value="184,200" accent="green" />
+        <Stat label="Open orders" value={formatNumber(openOrderCount)} accent="cyan" />
+        <Stat label="Lead inbox" value={formatNumber(inboxCount)} accent="green" />
       </div>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-3">
-        <Card glow className="lg:col-span-2">
-          <CardLabel>Platform ROAS acceleration</CardLabel>
-          <CardTitle className="mt-2">Blended cohort · cumulative</CardTitle>
-          <div className="mt-4">
-            <RoiAccelerationChart />
-          </div>
-        </Card>
+      <div className="mt-8 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
         <Card>
-          <CardLabel>Confidence by vertical</CardLabel>
-          <CardTitle className="mt-2">Calibration vs. panel</CardTitle>
-          <div className="mt-4">
-            <ConfidenceRadarChart height={260} />
+          <div className="flex items-center justify-between">
+            <div>
+              <CardLabel>Fulfillment queue</CardLabel>
+              <CardTitle className="mt-1">Pending + in-progress orders</CardTitle>
+            </div>
+            <Button href="/admin/orders" size="sm" variant="outline">
+              All orders →
+            </Button>
           </div>
-        </Card>
-      </div>
-
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardLabel>Demo inbox · latest</CardLabel>
-          <CardTitle className="mt-2">Inbound requests</CardTitle>
-          <ul className="mt-4 space-y-3 text-sm">
-            {recentDemo.map((d) => (
+          <ul className="mt-5 space-y-3 text-sm">
+            {pendingOrders.map((o) => (
               <li
-                key={d.id}
-                className="flex items-center justify-between border-b border-platinum/5 pb-2 last:border-0 last:pb-0"
+                key={o.id}
+                className="flex items-center justify-between border-b border-platinum/5 pb-3 last:border-0 last:pb-0"
               >
                 <div>
-                  <div className="text-white">{d.name}</div>
-                  <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-platinum/55">
-                    {d.company ?? "—"} · {d.industry ?? "—"}
+                  <Link
+                    href={`/admin/orders/${o.id}`}
+                    className="text-white hover:text-ai-cyan"
+                  >
+                    {o.organization.name} · {o.industry}
+                  </Link>
+                  <div className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-platinum/55">
+                    {formatNumber(o.volume)} records · {formatNumber(o.creditCost)} cr ·{" "}
+                    {prettyMethod(o.deliveryMethod)} · {o._count.files} file{o._count.files === 1 ? "" : "s"} ·{" "}
+                    {o.requestedBy.email}
                   </div>
                 </div>
-                <div className="text-right text-xs text-platinum/55">
-                  {new Date(d.createdAt).toISOString().slice(0, 10)}
-                </div>
+                <Badge tone={statusTone[o.status] ?? "neutral"}>{o.status.toLowerCase()}</Badge>
               </li>
             ))}
-            {recentDemo.length === 0 && (
-              <li className="text-platinum/55">No inbound requests yet.</li>
+            {pendingOrders.length === 0 && (
+              <li className="text-platinum/55">No open orders.</li>
             )}
           </ul>
         </Card>
+
         <Card>
-          <CardLabel>Credit ledger · latest</CardLabel>
-          <CardTitle className="mt-2">Recent transactions</CardTitle>
-          <ul className="mt-4 space-y-3 text-sm">
-            {recentCredit.map((t) => (
+          <CardLabel>Recent ledger activity</CardLabel>
+          <CardTitle className="mt-1">Credit movements</CardTitle>
+          <ul className="mt-5 space-y-3 text-sm">
+            {recentTxns.map((t) => (
               <li
                 key={t.id}
-                className="flex items-center justify-between border-b border-platinum/5 pb-2 last:border-0 last:pb-0"
+                className="flex items-center justify-between border-b border-platinum/5 pb-3 last:border-0 last:pb-0"
               >
                 <div>
                   <div className="text-white">{t.organization.name}</div>
-                  <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-platinum/55">
+                  <div className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-platinum/55">
                     {t.kind.toLowerCase()} · {t.grantedBy?.email ?? "system"}
                   </div>
                 </div>
@@ -102,8 +116,46 @@ export default async function AdminDashboard() {
                 </div>
               </li>
             ))}
-            {recentCredit.length === 0 && (
-              <li className="text-platinum/55">No transactions yet.</li>
+            {recentTxns.length === 0 && <li className="text-platinum/55">No txns.</li>}
+          </ul>
+        </Card>
+      </div>
+
+      <div className="mt-8 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+        <Card glow>
+          <CardLabel>Blended platform CAC reduction</CardLabel>
+          <CardTitle className="mt-1">9-month rolling cohort</CardTitle>
+          <div className="mt-4">
+            <CacReductionChart />
+          </div>
+        </Card>
+
+        <Card>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardLabel>Lead inbox · latest</CardLabel>
+              <CardTitle className="mt-1">Quote + demo requests</CardTitle>
+            </div>
+            <Button href="/admin/inbox" size="sm" variant="outline">
+              Open inbox →
+            </Button>
+          </div>
+          <ul className="mt-5 space-y-3 text-sm">
+            {recentInbox.map((d) => (
+              <li key={d.id} className="border-b border-platinum/5 pb-3 last:border-0 last:pb-0">
+                <div className="flex items-center justify-between">
+                  <div className="text-white">{d.name}</div>
+                  <Badge tone={d.source === "quote" ? "cyan" : "green"}>
+                    {d.source ?? "demo"}
+                  </Badge>
+                </div>
+                <div className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-platinum/55">
+                  {d.company ?? "—"} · {d.industry ?? "—"} · {d.email}
+                </div>
+              </li>
+            ))}
+            {recentInbox.length === 0 && (
+              <li className="text-platinum/55">No inbound yet.</li>
             )}
           </ul>
         </Card>
@@ -129,4 +181,16 @@ function Stat({
       <div className={`mt-3 font-display text-3xl font-semibold num ${color}`}>{value}</div>
     </Card>
   );
+}
+
+function prettyMethod(m: string) {
+  return (
+    {
+      FILE_DOWNLOAD: "File",
+      PING_POST: "Ping-post",
+      SFTP: "SFTP",
+      API_PULL: "API pull",
+      CUSTOM: "Custom",
+    } as Record<string, string>
+  )[m] ?? m;
 }

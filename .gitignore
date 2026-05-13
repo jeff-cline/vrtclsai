@@ -12,3 +12,4 @@ dist/
 .vscode/
 prisma/dev.db*
 coverage/
+uploads/

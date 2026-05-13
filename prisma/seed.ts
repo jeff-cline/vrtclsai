@@ -14,7 +14,6 @@ async function main() {
     );
   }
 
-  // Admin user (no org affiliation; super-admin)
   const adminHash = await bcrypt.hash(adminPassword, 12);
   const admin = await prisma.user.upsert({
     where: { email: adminEmail },
@@ -27,7 +26,7 @@ async function main() {
     },
   });
 
-  // Demo enterprise organization
+  // Demo customer organization
   const acme = await prisma.organization.upsert({
     where: { id: "seed-acme-health" },
     update: {},
@@ -50,7 +49,28 @@ async function main() {
     },
   });
 
-  // Sample manager + customer users for Meridian
+  // Delivery preferences
+  await prisma.deliveryPreference.upsert({
+    where: { organizationId: acme.id },
+    update: {},
+    create: {
+      organizationId: acme.id,
+      method: "FILE_DOWNLOAD",
+      notes: "CSV deliveries preferred; team downloads from the portal.",
+    },
+  });
+
+  await prisma.deliveryPreference.upsert({
+    where: { organizationId: aurora.id },
+    update: {},
+    create: {
+      organizationId: aurora.id,
+      method: "PING_POST",
+      endpoint: "https://lead-ingest.aurora-realty.example/v1/intake",
+      notes: "Ping-post with HMAC signature; admin team has the secret.",
+    },
+  });
+
   const managerHash = await bcrypt.hash("DemoManager!1", 12);
   const customerHash = await bcrypt.hash("DemoCustomer!1", 12);
 
@@ -66,7 +86,7 @@ async function main() {
     },
   });
 
-  await prisma.user.upsert({
+  const meridianCustomer = await prisma.user.upsert({
     where: { email: "analyst@meridian.example" },
     update: { organizationId: acme.id, role: "CUSTOMER" },
     create: {
@@ -78,7 +98,7 @@ async function main() {
     },
   });
 
-  await prisma.user.upsert({
+  const auroraCustomer = await prisma.user.upsert({
     where: { email: "ops@aurora.example" },
     update: { organizationId: aurora.id, role: "CUSTOMER" },
     create: {
@@ -90,7 +110,7 @@ async function main() {
     },
   });
 
-  // Credit txns (audit history)
+  // Credit txns
   await prisma.creditTxn.createMany({
     data: [
       {
@@ -99,13 +119,6 @@ async function main() {
         kind: "GRANT",
         note: "initial enterprise allocation · wire received",
         grantedById: admin.id,
-      },
-      {
-        organizationId: acme.id,
-        amount: -1200,
-        kind: "CONSUME",
-        note: "audience query · healthcare-hnw-2026q2",
-        grantedById: null,
       },
       {
         organizationId: aurora.id,
@@ -118,79 +131,121 @@ async function main() {
     skipDuplicates: true,
   });
 
-  // Audiences
-  await prisma.audience.createMany({
+  // Sample orders
+  await prisma.order.createMany({
     data: [
       {
+        id: "seed-order-acme-1",
         organizationId: acme.id,
-        name: "Regenerative medicine · 4-state cohort",
-        description: "Predictive cohort across AZ, NV, TX, FL — 72h intent window",
-        filters: { states: ["AZ", "NV", "TX", "FL"], window: "72h", category: "regenerative" },
-        size: 18420,
-        confidence: 0.92,
+        requestedById: meridianCustomer.id,
+        industry: "Healthcare",
+        region: "AZ, NV, TX, FL",
+        volume: 5000,
+        filters: { ageRange: [35, 70], incomeMin: 200000, enrichments: ["demographic", "identity"], decayWindowHours: 72 },
+        creditCost: 1800,
+        status: "DELIVERED",
+        deliveryMethod: "FILE_DOWNLOAD",
+        deliveryNotes: "CSV with standard schema.",
+        acceptedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7),
+        deliveredAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 4),
       },
       {
+        id: "seed-order-acme-2",
         organizationId: acme.id,
-        name: "Longevity HNW · concierge tier",
-        description: "HNW longevity-program consideration · concierge price point",
-        filters: { tier: "concierge", income: ">$500k" },
-        size: 4280,
-        confidence: 0.88,
+        requestedById: meridianCustomer.id,
+        industry: "Healthcare",
+        region: "FL",
+        volume: 2500,
+        filters: { specialty: "longevity", incomeMin: 350000, enrichments: ["demographic", "psychographic", "identity"] },
+        creditCost: 1100,
+        status: "PENDING",
+        deliveryMethod: "FILE_DOWNLOAD",
+        acceptedAt: new Date(Date.now() - 1000 * 60 * 60 * 18),
       },
       {
+        id: "seed-order-aurora-1",
         organizationId: aurora.id,
-        name: "HNW migration · CA → TX corridor",
-        description: "Pre-MLS migration intent · 60–90 day window",
-        filters: { from: "CA", to: ["TX"], window: "60-90d" },
-        size: 9610,
-        confidence: 0.9,
+        requestedById: auroraCustomer.id,
+        industry: "Real Estate",
+        region: "CA → TX corridor",
+        volume: 8000,
+        filters: { window: "60-90d", segment: "HNW migration", enrichments: ["identity", "behavioral"] },
+        creditCost: 2400,
+        status: "IN_PROGRESS",
+        deliveryMethod: "PING_POST",
+        deliveryEndpoint: "https://lead-ingest.aurora-realty.example/v1/intake",
+        acceptedAt: new Date(Date.now() - 1000 * 60 * 60 * 36),
       },
     ],
     skipDuplicates: true,
   });
 
-  // Lead requests
-  await prisma.leadRequest.createMany({
+  // Consume txns for placed orders
+  await prisma.creditTxn.createMany({
     data: [
       {
         organizationId: acme.id,
-        requestedById: admin.id,
-        industry: "Healthcare",
-        audienceName: "Regenerative medicine · AZ cohort",
-        filters: { state: "AZ", window: "48h" },
-        estimatedSize: 2840,
-        confidence: 0.91,
-        status: "DELIVERED",
-        creditCost: 320,
+        amount: -1800,
+        kind: "CONSUME",
+        note: "order seed-order-acme-1 · 5,000 records",
+        orderId: "seed-order-acme-1",
       },
       {
         organizationId: acme.id,
-        requestedById: admin.id,
-        industry: "Healthcare",
-        audienceName: "Longevity HNW · concierge",
-        filters: { tier: "concierge" },
-        estimatedSize: 1180,
-        confidence: 0.86,
-        status: "APPROVED",
-        creditCost: 240,
+        amount: -1100,
+        kind: "CONSUME",
+        note: "order seed-order-acme-2 · 2,500 records",
+        orderId: "seed-order-acme-2",
       },
       {
         organizationId: aurora.id,
-        requestedById: admin.id,
-        industry: "Real Estate",
-        audienceName: "TX corridor · pre-MLS",
-        filters: { from: "CA", to: "TX" },
-        estimatedSize: 4210,
-        confidence: 0.9,
-        status: "PENDING",
-        creditCost: 460,
+        amount: -2400,
+        kind: "CONSUME",
+        note: "order seed-order-aurora-1 · 8,000 records",
+        orderId: "seed-order-aurora-1",
+      },
+    ],
+    skipDuplicates: true,
+  });
+
+  // Reconcile balances to reflect consumption
+  await prisma.organization.update({
+    where: { id: acme.id },
+    data: { creditBalance: 25000 - 1800 - 1100 },
+  });
+  await prisma.organization.update({
+    where: { id: aurora.id },
+    data: { creditBalance: 12000 - 2400 },
+  });
+
+  // Sample inbound lead from public /quote form
+  await prisma.demoRequest.createMany({
+    data: [
+      {
+        name: "Casey Brennan",
+        email: "casey@example-clinic.com",
+        company: "Pacific Longevity Clinic",
+        phone: "+1-555-0107",
+        industry: "Healthcare",
+        volume: "10k–50k",
+        message: "Looking to acquire HNW patient leads in West Coast metros, Q3 ramp.",
+        source: "quote",
+      },
+      {
+        name: "Jordan Hale",
+        email: "jordan@example-pe.com",
+        company: "Beacon Equity Partners",
+        industry: "Private Equity",
+        volume: "50k–250k",
+        message: "Portfolio-wide deployment across home services and wellness portcos.",
+        source: "demo",
       },
     ],
     skipDuplicates: true,
   });
 
   console.log(
-    `[seed] OK — admin: ${adminEmail}, orgs: 2, seeded users with passwords: 'DemoManager!1' / 'DemoCustomer!1'`
+    `[seed] OK · admin: ${adminEmail} · orgs: 2 · sample orders + delivery preferences seeded · demo passwords 'DemoManager!1' / 'DemoCustomer!1'`
   );
 }
 

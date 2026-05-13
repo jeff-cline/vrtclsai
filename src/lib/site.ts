@@ -8,15 +8,16 @@ export const site = {
   email: "intel@vrtcls.ai",
   twitter: "@vrtclsai",
   cta: {
-    primary: { label: "Run Predictive Estimate", href: "/#calculator" },
+    primary: { label: "Get a Quote", href: "/quote" },
     secondary: { label: "Request Enterprise Demo", href: "/demo" },
-    tertiary: { label: "Download Intelligence Report", href: "/research" },
+    tertiary: { label: "Run Predictive Estimate", href: "/#calculator" },
   },
   nav: [
     { label: "Platform", href: "/platform" },
     { label: "Industries", href: "/industries" },
     { label: "Research", href: "/research" },
     { label: "Case Studies", href: "/case-studies" },
+    { label: "Pricing", href: "/quote" },
     { label: "FAQ", href: "/faq" },
   ],
   industries: [
