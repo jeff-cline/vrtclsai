@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
+import { authConfig } from "@/auth.config";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -10,9 +11,7 @@ const credentialsSchema = z.object({
 });
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  trustHost: true,
-  session: { strategy: "jwt" },
-  pages: { signIn: "/login" },
+  ...authConfig,
   providers: [
     Credentials({
       name: "credentials",
@@ -44,33 +43,4 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
     }),
   ],
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id as string;
-        token.role = (user as { role?: string }).role ?? "CUSTOMER";
-        token.organizationId = (user as { organizationId?: string | null }).organizationId ?? null;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (session.user) {
-        (session.user as { id?: string }).id = token.id as string;
-        (session.user as { role?: string }).role = token.role as string;
-        (session.user as { organizationId?: string | null }).organizationId =
-          (token.organizationId as string | null) ?? null;
-      }
-      return session;
-    },
-    authorized({ auth, request }) {
-      const url = request.nextUrl;
-      const isAuthed = !!auth?.user;
-      const role = (auth?.user as { role?: string } | undefined)?.role;
-      if (url.pathname.startsWith("/admin")) return isAuthed && role === "ADMIN";
-      if (url.pathname.startsWith("/manager"))
-        return isAuthed && (role === "ADMIN" || role === "MANAGER");
-      if (url.pathname.startsWith("/portal")) return isAuthed;
-      return true;
-    },
-  },
 });

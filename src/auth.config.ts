@@ -1,14 +1,35 @@
-// Edge-safe auth configuration shim for middleware.
+// Edge-safe auth configuration. Both the Node-runtime auth() (src/lib/auth.ts)
+// and the edge-runtime middleware (src/middleware.ts) consume this, so the JWT
+// and session callbacks must live here — otherwise the token decoded by the
+// middleware is missing `role`/`organizationId` and every protected request
+// gets bounced to /login.
 import type { NextAuthConfig } from "next-auth";
 
 export const authConfig = {
   // Required when running behind a reverse proxy (nginx → Next.js on Vultr).
-  // Without this the edge middleware fails to validate the request host and
-  // every navigation gets bounced to /login even after a successful sign-in.
   trustHost: true,
+  session: { strategy: "jwt" },
   pages: { signIn: "/login" },
-  providers: [],
+  providers: [], // Credentials provider is added in src/lib/auth.ts (Node only).
   callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = (user as { id?: string }).id ?? token.sub;
+        token.role = (user as { role?: string }).role ?? "CUSTOMER";
+        token.organizationId =
+          (user as { organizationId?: string | null }).organizationId ?? null;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        (session.user as { id?: string }).id = token.id as string;
+        (session.user as { role?: string }).role = token.role as string;
+        (session.user as { organizationId?: string | null }).organizationId =
+          (token.organizationId as string | null) ?? null;
+      }
+      return session;
+    },
     authorized({ auth, request }) {
       const url = request.nextUrl;
       const isAuthed = !!auth?.user;
