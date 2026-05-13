@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { SiteHeader } from "@/components/site/header";
 import { SiteFooter } from "@/components/site/footer";
 import { Section } from "@/components/ui/section";
@@ -7,6 +8,19 @@ import { Card, CardLabel, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CtaBlock } from "@/components/marketing/cta-block";
 import { DecayCurveChart } from "@/components/charts/decay-curve";
+import { ConversionVelocityChart } from "@/components/charts/conversion-velocity";
+import { getArticle } from "@/content/cluster-articles";
+import { industries } from "@/content/industries";
+
+export function generateStaticParams() {
+  const slugs = new Set<string>();
+  slugs.add("predictive-methodology");
+  slugs.add("identity-graphing");
+  slugs.add("behavioral-economics");
+  slugs.add("compliance");
+  for (const i of industries) for (const c of i.clusterTopics) slugs.add(c);
+  return Array.from(slugs).map((slug) => ({ slug }));
+}
 
 export async function generateMetadata({
   params,
@@ -14,10 +28,12 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const title = slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const article = getArticle(slug);
   return {
-    title: `${title} — Predictive Intelligence Research`,
-    description: `${title}: methodology, calibration, benchmarks, and citations from the predictive intelligence research hub.`,
+    title: `${article.title} — Predictive Intelligence Research`,
+    description: article.intro,
+    keywords: article.keywords,
+    openGraph: { title: article.title, description: article.intro, type: "article" },
   };
 }
 
@@ -27,7 +43,11 @@ export default async function ResearchArticlePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const title = slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const article = getArticle(slug);
+
+  // Lateral links within silo — other clusters in the same industry, if any.
+  const parentIndustry = industries.find((i) => i.clusterTopics.includes(slug));
+  const lateralClusters = parentIndustry?.clusterTopics.filter((c) => c !== slug).slice(0, 5) ?? [];
 
   return (
     <>
@@ -38,15 +58,13 @@ export default async function ResearchArticlePage({
           <div className="data-grid absolute inset-0 opacity-20" aria-hidden />
           <Container className="relative z-10 py-20">
             <Badge tone="cyan" className="mb-5">
-              Research · Whitepaper-grade
+              {article.category} · Research
             </Badge>
             <h1 className="max-w-4xl font-display text-4xl font-semibold tracking-tight text-white text-balance sm:text-5xl">
-              {title}
+              {article.title}
             </h1>
             <p className="mt-5 max-w-2xl text-lg text-platinum/70 leading-relaxed">
-              Methodology, calibration framework, and category benchmarks. Every
-              chart on this page is derived from production model output;
-              individual customer data is anonymized or omitted.
+              {article.intro}
             </p>
             <div className="mt-6 font-mono text-[11px] uppercase tracking-[0.16em] text-platinum/50">
               Updated {new Date().toISOString().slice(0, 10)} · v4.7 model
@@ -55,78 +73,120 @@ export default async function ResearchArticlePage({
         </section>
 
         <Section>
-          <article className="prose prose-invert mx-auto max-w-3xl">
-            <h2 className="font-display text-2xl font-semibold text-white">Overview</h2>
-            <p className="mt-3 text-base text-platinum/75 leading-relaxed">
-              This article is part of the predictive intelligence research hub
-              — a body of methodology documentation, calibration curves, and
-              category benchmarks that anchor the platform's claims to
-              institutional discipline. Generic marketing assertions are absent
-              by design.
-            </p>
-            <h2 className="mt-10 font-display text-2xl font-semibold text-white">
-              Methodology
-            </h2>
-            <p className="mt-3 text-base text-platinum/75 leading-relaxed">
-              Predictive scoring combines four model families: behavioral
-              propensity (trained on millions of historical conversion events),
-              identity-graph confidence (probabilistic linkage of signals to a
-              unified individual), decay-aware signal weighting (preserving
-              stale signals as down-weighted features rather than discarding
-              them), and demographic + psychographic overlays. The output is a
-              single 0–100 score with a calibrated confidence interval.
-            </p>
-            <h2 className="mt-10 font-display text-2xl font-semibold text-white">
-              Calibration
-            </h2>
-            <p className="mt-3 text-base text-platinum/75 leading-relaxed">
-              Calibration is the property that a 70% predicted probability
-              actually corresponds to a 70% observed conversion rate. The
-              platform applies isotonic regression on a held-out panel and
-              reports Brier-score evaluation per industry. Calibration is
-              monitored continuously; drift triggers model re-training.
-            </p>
-
-            <div className="my-10 not-prose">
-              <Card glow>
-                <CardLabel>Calibrated decay</CardLabel>
-                <CardTitle className="mt-2">
-                  Signal half-life vs. industry-average benchmarks
-                </CardTitle>
-                <div className="mt-4">
-                  <DecayCurveChart />
+          <div className="grid gap-10 lg:grid-cols-[1fr_280px]">
+            <article className="prose prose-invert max-w-none">
+              {article.sections.map((s) => (
+                <div key={s.heading} className="mb-10">
+                  <h2 className="font-display text-2xl font-semibold text-white">
+                    {s.heading}
+                  </h2>
+                  <p className="mt-3 text-base text-platinum/75 leading-relaxed">{s.body}</p>
                 </div>
-                <p className="mt-4 text-sm text-platinum/65">
-                  Reference curves derived from production scoring output, anonymized.
-                </p>
-              </Card>
-            </div>
+              ))}
 
-            <h2 className="mt-10 font-display text-2xl font-semibold text-white">
-              Selected citations
-            </h2>
-            <ul className="mt-3 space-y-3 text-base text-platinum/75">
-              <li>
-                Kahneman, D., & Tversky, A. — Prospect theory: An analysis of
-                decision under risk. (1979)
-              </li>
-              <li>
-                Liniger, T. — Multivariate Hawkes processes for self-exciting
-                event data. (2009)
-              </li>
-              <li>
-                Fellegi, I., & Sunter, A. — A Theory for Record Linkage. (1969)
-              </li>
-              <li>
-                Brier, G. — Verification of forecasts expressed in terms of
-                probability. (1950)
-              </li>
-              <li>
-                Niculescu-Mizil, A., & Caruana, R. — Predicting good
-                probabilities with supervised learning. (2005)
-              </li>
-            </ul>
-          </article>
+              <div className="my-10 not-prose">
+                <Card glow>
+                  <CardLabel>Calibrated decay reference</CardLabel>
+                  <CardTitle className="mt-2">Signal half-life — production model</CardTitle>
+                  <div className="mt-4">
+                    <DecayCurveChart />
+                  </div>
+                </Card>
+              </div>
+
+              <div className="my-10 not-prose">
+                <Card glow>
+                  <CardLabel>Conversion velocity reference</CardLabel>
+                  <CardTitle className="mt-2">Predictive cohort vs. cold list</CardTitle>
+                  <div className="mt-4">
+                    <ConversionVelocityChart />
+                  </div>
+                </Card>
+              </div>
+
+              <h2 className="mt-10 font-display text-2xl font-semibold text-white">
+                Citations
+              </h2>
+              <ul className="mt-3 space-y-2 text-sm text-platinum/70">
+                {article.citations.map((c) => (
+                  <li key={c}>· {c}</li>
+                ))}
+              </ul>
+            </article>
+
+            <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+              {parentIndustry && (
+                <Card>
+                  <CardLabel>Silo pillar</CardLabel>
+                  <CardTitle className="mt-2 text-[15px] leading-snug">
+                    {parentIndustry.label}
+                  </CardTitle>
+                  <Link
+                    href={`/industries/${parentIndustry.slug}`}
+                    className="mt-3 inline-flex text-xs text-ai-cyan hover:underline"
+                  >
+                    Read the pillar →
+                  </Link>
+                </Card>
+              )}
+
+              {lateralClusters.length > 0 && (
+                <Card>
+                  <CardLabel>Related clusters</CardLabel>
+                  <ul className="mt-3 space-y-2 text-sm">
+                    {lateralClusters.map((c) => (
+                      <li key={c}>
+                        <Link
+                          href={`/research/${c}`}
+                          className="text-platinum/70 hover:text-white capitalize"
+                        >
+                          {c.replace(/-/g, " ")}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+              )}
+
+              <Card>
+                <CardLabel>Topic pillars</CardLabel>
+                <ul className="mt-3 space-y-2 text-sm">
+                  <li>
+                    <Link
+                      href="/research/predictive-methodology"
+                      className="text-platinum/70 hover:text-white"
+                    >
+                      Predictive methodology
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/research/identity-graphing"
+                      className="text-platinum/70 hover:text-white"
+                    >
+                      Identity graphing
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/research/behavioral-economics"
+                      className="text-platinum/70 hover:text-white"
+                    >
+                      Behavioral economics
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/research/compliance"
+                      className="text-platinum/70 hover:text-white"
+                    >
+                      Data compliance & privacy
+                    </Link>
+                  </li>
+                </ul>
+              </Card>
+            </aside>
+          </div>
         </Section>
 
         <CtaBlock />
@@ -137,7 +197,9 @@ export default async function ResearchArticlePage({
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "Article",
-              headline: title,
+              headline: article.title,
+              description: article.intro,
+              keywords: article.keywords.join(", "),
               datePublished: new Date().toISOString(),
               dateModified: new Date().toISOString(),
             }),

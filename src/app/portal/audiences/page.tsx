@@ -5,6 +5,7 @@ import { Card, CardLabel, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatNumber, formatPercent } from "@/lib/utils";
+import { AudienceBuilder } from "@/components/portal/audience-builder";
 
 export default async function AudiencesPage() {
   const session = await auth();
@@ -23,11 +24,14 @@ export default async function AudiencesPage() {
         title="Audiences"
         subtitle="Predictive cohorts assembled from behavioral, demographic, psychographic, and identity-graph signals."
       />
+      <div className="mb-8">
+        <AudienceBuilder />
+      </div>
+
       <div className="mb-6 flex items-center justify-between">
         <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-platinum/55">
           {audiences.length} saved audiences
         </div>
-        <Button size="sm">+ New audience</Button>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {audiences.map((a) => (

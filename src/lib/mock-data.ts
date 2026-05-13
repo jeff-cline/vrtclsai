@@ -291,4 +291,128 @@ export const faqEntries = [
     q: "Can I export audiences directly to ad platforms?",
     a: "Yes. Direct push to Meta, Google, LinkedIn, TikTok, X, and major DSPs. Audiences refresh automatically based on the schedule you set; expired members are removed, new members added in real time.",
   },
+  {
+    q: "What does 'decay-aware' actually mean technically?",
+    a: "Each signal class has an empirically-fit decay curve (typically modeled as a Hawkes process with category-specific self-excitation). At score time, signals are weighted by their decay-adjusted value rather than treated as binary present/absent. A 60-day-old signal is not discarded — it is down-weighted to reflect its diminished predictive contribution.",
+  },
+  {
+    q: "How quickly can a new customer be onboarded?",
+    a: "Standard enterprise onboarding is 14–30 days end-to-end: contract, identity-graph integration, sandbox calibration against the customer's first-party audience, model governance review, then production access. Faster onboarding is possible for customers with mature data infrastructure.",
+  },
+  {
+    q: "Do you support European customers under GDPR?",
+    a: "Yes. The platform's hashed-first identity architecture and consent-provenance design support GDPR compliance. EU-resident data is processed in EU infrastructure under DPA terms. Article 17 (right to erasure) is supported at the entity level within contractual SLA.",
+  },
+  {
+    q: "What is a probability cohort versus a lead list?",
+    a: "A lead list is a static enumeration: names, emails, phones. A probability cohort is a dynamic, probability-weighted, decay-adjusted set of individuals filtered by predicted likelihood of a specific behavior within a defined window. Cohorts refresh continuously; members enter and leave as their predicted probability crosses thresholds.",
+  },
+  {
+    q: "Can I bring my own first-party data?",
+    a: "Yes. First-party data integration is encouraged. Customer data is integrated under DPA terms, used to enrich the customer's own cohorts, and is never cross-pollinated into other customers' outputs. First-party signals materially improve model output for the contributing customer.",
+  },
+  {
+    q: "How does pricing work without a checkout?",
+    a: "Pricing is contracted at onboarding through your account team. Enterprise customers operate on annual commitments with included credit allocations and tier-dependent overage pricing. Credits are issued to your organization in the admin portal after each invoice or wire is received.",
+  },
+  {
+    q: "What is the difference between tier pricing levels?",
+    a: "Optimized tier is for customers running probability cohorts across one or two industry verticals with standard enrichment. Enterprise tier adds dedicated infrastructure, model governance reviews, and faster enrichment SLAs. Strategic tier adds multi-vertical deployment with cross-cohort intelligence. Intelligence Partner tier is reserved for portfolio operators and platform partners with custom commercials.",
+  },
+  {
+    q: "Is identity resolution stable over time for the same individual?",
+    a: "Identity nodes are persistent across observations; underlying identifier sets evolve (new devices, address changes, contact updates) but node identity is stable. This is what allows historical signal weighting and longitudinal cohort analysis to work.",
+  },
+  {
+    q: "Can I see how a specific score was computed?",
+    a: "Yes. Enterprise and Strategic tier customers can request per-score feature-contribution breakdowns. The platform's model governance documentation includes the contribution decomposition methodology and per-vertical examples.",
+  },
+  {
+    q: "What if the model is wrong?",
+    a: "Models are wrong individually all the time — that is what probability means. The relevant metric is calibration, not individual prediction accuracy. A well-calibrated 70% probability score should produce a 70% observed conversion rate across the cohort. Calibration is monitored continuously and re-fit when drift exceeds threshold.",
+  },
+  {
+    q: "Does the platform handle B2B and consumer signals in the same architecture?",
+    a: "The infrastructure is shared; the models are not. B2B models operate at the account entity level with committee resolution; consumer models operate at the individual or household entity level. The feature engineering, decay structure, and calibration are all separately tuned.",
+  },
+  {
+    q: "How are audiences delivered to ad platforms?",
+    a: "Audiences can be delivered via direct API push to major ad platforms (Meta, Google, LinkedIn, TikTok, X, major DSPs), via CSV/Parquet export, or via webhook to customer-side automation. Refresh cadence is configurable per audience.",
+  },
+  {
+    q: "What is the difference between the platform's score and a third-party intent vendor?",
+    a: "Third-party intent vendors typically deliver a binary or low-resolution flag indicating interest. The platform's score is a calibrated probability with confidence interval, decay-adjusted, identity-graph weighted, and tied to a specific conversion window. The two products do different things; the platform supplements (rather than replaces) third-party intent in most stacks.",
+  },
+  {
+    q: "How does the platform handle attribution back to source spend?",
+    a: "Closed-loop attribution requires customer-side conversion tracking. The platform exposes cohort membership and predicted-probability bands; combining those with the customer's conversion data produces the attribution analysis. Customers using major MMM/MTA stacks can ingest cohort-level data directly.",
+  },
+  {
+    q: "Can the platform be used for retention, not just acquisition?",
+    a: "Yes. Retention scoring uses the same model architecture against existing-customer behavior, predicting churn probability and identifying intervention windows. Retention modeling typically achieves higher calibration accuracy than acquisition modeling because the customer has direct historical observation of the individual.",
+  },
+  {
+    q: "What does 'panel-calibrated' mean?",
+    a: "A panel is a labeled, consented reference population for which ground-truth outcomes are known. Calibrating against a panel means comparing model output to observed outcomes in the panel and adjusting the model so that predicted probabilities match observed frequencies. Panels are refreshed periodically to track drift.",
+  },
+  {
+    q: "How do you handle bot and fraud signals?",
+    a: "Bot/fraud detection runs at ingestion. Signals failing integrity checks are quarantined; sources exceeding fraud thresholds are demoted in the supplier weighting. The platform publishes signal-integrity metrics quarterly to enterprise customers.",
+  },
+  {
+    q: "What infrastructure does the platform run on?",
+    a: "The platform runs on dedicated cloud infrastructure with EU-resident processing available for EU-customer data. Customer-facing services are CDN-fronted; scoring APIs run in dedicated cells per tier. SOC 2 Type II audited annually.",
+  },
+  {
+    q: "Can the platform integrate with Snowflake / BigQuery?",
+    a: "Yes. Snowflake Data Sharing, BigQuery Data Sharing, and direct table push are supported. Customers operating their analytics in cloud data warehouses can receive cohort outputs natively without ETL.",
+  },
+  {
+    q: "What is the typical contract length?",
+    a: "Standard enterprise contracts are annual. Quarterly pilots are available for qualified accounts. Multi-year commitments are common for strategic-tier engagements and include preferential pricing.",
+  },
+  {
+    q: "Does the platform store customer first-party PII?",
+    a: "First-party PII is hashed at the boundary and used only to enrich the customer's own cohorts. Raw PII is not stored in the identity graph and is not used to build the platform's general models.",
+  },
+  {
+    q: "How is the platform's signal supply diversified?",
+    a: "No single supplier is permitted to exceed a capped share of any signal class. Diversification is enforced at the supplier-onboarding contract level and monitored in production. This protects against single-source bias and signal-supply disruption.",
+  },
+  {
+    q: "Does the platform support multi-touch attribution?",
+    a: "The platform produces cohort-level outputs that feed naturally into customer-side multi-touch attribution. Direct attribution products are roadmap; current customers using MTA stacks (e.g., Northbeam, Triple Whale, custom in-house) ingest cohort-level data.",
+  },
+  {
+    q: "What is the latency of the scoring API?",
+    a: "Sub-100ms p50 latency for single-record scoring. Batch scoring runs at higher throughput with per-record latency in the tens of milliseconds. Enterprise tier customers have dedicated capacity guarantees.",
+  },
+  {
+    q: "Can I exclude specific cohorts (suppression)?",
+    a: "Yes. Customer-defined suppression lists are applied at delivery; suppressed individuals are excluded from audience outputs and from re-targeting. Suppression supports both individual identifiers and behavioral cohort-level exclusions.",
+  },
+  {
+    q: "How does the platform price overage usage?",
+    a: "Overage above contracted credit allocation is billed at tier-dependent rates. Customers receive real-time visibility into credit consumption in the portal; automated alerts at configurable thresholds prevent unexpected overage.",
+  },
+  {
+    q: "What happens when an individual revokes consent?",
+    a: "Consent revocation propagates from the consent source through the identity graph to all derived signals and cohort memberships within the contractual SLA window. Revoked individuals are excluded from all subsequent outputs.",
+  },
+  {
+    q: "Can the platform be deployed in customer infrastructure (on-prem / VPC)?",
+    a: "VPC-deployment is available for Strategic and Intelligence Partner tier engagements. The platform's identity graph and scoring services can run inside customer infrastructure under appropriate contractual frameworks. This is most commonly used for HIPAA-bound healthcare deployments.",
+  },
+  {
+    q: "What is the model retraining cadence?",
+    a: "Production models are retrained on a rolling 90-day window. Calibration is monitored continuously; calibration drift triggers re-fit (without full retraining) within hours. Full model version increments are released on a quarterly cadence with documented governance.",
+  },
+  {
+    q: "How does the platform measure customer success?",
+    a: "Three measurement layers: (1) calibration accuracy against the customer's own conversion data, (2) downstream business KPIs — CAC, ROAS, conversion lift — calculated against contractual baselines, and (3) operational metrics — credit utilization, API latency, audience refresh times. Enterprise customers receive monthly performance reports.",
+  },
+  {
+    q: "What is the platform's stance on broadcast media targeting (CTV, linear)?",
+    a: "Predictive cohorts are deliverable to programmatic CTV via standard ad-platform integrations. Linear TV targeting via household-resolution cohorts is supported through audience licensing partners. The platform's value compounds in addressable channels where targeting precision converts directly to outcome.",
+  },
 ];
