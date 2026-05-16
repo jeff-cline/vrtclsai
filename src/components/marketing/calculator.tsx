@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { Section } from "@/components/ui/section";
 import { Card, CardLabel } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { submitDemoRequest } from "@/app/actions/demo";
 import { formatNumber } from "@/lib/utils";
 import {
   DEMOGRAPHICS,
@@ -32,6 +33,9 @@ export function LeadValueCalculator() {
   const [recencyDays, setRecencyDays] = useState<number>(1);
   const [quantity, setQuantity] = useState<number>(500);
   const [demographics, setDemographics] = useState<DemographicKey[]>(DEFAULT_DEMOS);
+  const [quoteUnlocked, setQuoteUnlocked] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
+  const [unlockError, setUnlockError] = useState<string | null>(null);
 
   const quote = useMemo(
     () => quoteLeads({ recencyDays, demographics, quantity }),
@@ -43,12 +47,28 @@ export function LeadValueCalculator() {
       s.includes(k) ? s.filter((x) => x !== k) : [...s, k]
     );
 
+  async function unlockPricing(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setUnlocking(true);
+    setUnlockError(null);
+    const fd = new FormData(e.currentTarget);
+    fd.set("source", "quote-calculator-lock");
+    fd.set(
+      "message",
+      `Calculator unlock request: recency=${recencyDays} days, quantity=${quantity}, demographics=${demographics.join(",")}`
+    );
+    const res = await submitDemoRequest(fd);
+    setUnlocking(false);
+    if (res.ok) setQuoteUnlocked(true);
+    else setUnlockError(res.error ?? "Unable to submit. Please try again.");
+  }
+
   return (
     <Section
       id="calculator"
       eyebrow="Interactive · Lead pricing calculator"
       title="Price your lead pull in real time."
-      intro="Tune freshness, demographic depth, and quantity. The model returns your per-lead price, total order, and where the volume floor kicks in. Premium real-time pulls top out at $25/lead; archive bulk floors at $0.44/lead."
+      intro="Tune freshness, demographic depth, and quantity. The model updates live while your team configures recency, depth, and volume. Submit your details to unlock full quote visibility."
     >
       <Card className="overflow-hidden p-0">
         <div className="grid lg:grid-cols-[1.1fr_1fr]">
@@ -147,68 +167,121 @@ export function LeadValueCalculator() {
 
           {/* Output */}
           <div className="space-y-6 bg-navy-900/40 p-8 lg:p-10">
-            <div className="rounded-lg border border-platinum/10 bg-navy-800/60 p-5">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-ai-cyan">
-                  {quote.tier}
-                </span>
-                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-platinum/55">
-                  Range {fmtMoney(FLOOR_PRICE_PER_LEAD, true)} – {fmtMoney(PREMIUM_PRICE_PER_LEAD)}
-                </span>
-              </div>
-              <div className="mt-3 font-display text-5xl font-semibold text-white num">
-                {fmtMoney(quote.pricePerLead, true)}
-                <span className="ml-2 align-baseline font-mono text-xs uppercase tracking-[0.2em] text-platinum/50">
-                  / lead
-                </span>
-              </div>
-              <p className="mt-2 text-sm text-platinum/65">
-                {quote.tier === "Real-time premium" &&
-                  "Real-time delivery on high-intent records. Daily push, freshest available, full demographic stack."}
-                {quote.tier === "Performance" &&
-                  "Recent records with rich appends — strong fit for active outbound and qualified retargeting cohorts."}
-                {quote.tier === "Volume" &&
-                  "Mid-aged records at scale. Optimized for nurture sequences and look-alike modeling."}
-                {quote.tier === "Archive bulk" &&
-                  "Older, lightly-appended records at the platform floor — bulk targeting and broad-reach campaigns."}
-              </p>
-            </div>
-
-            <ResultRow
-              label="Per-lead price"
-              value={fmtMoney(quote.pricePerLead, true)}
-            />
-            <ResultRow
-              label="Subtotal"
-              value={fmtMoney(quote.subtotal)}
-              dim={quote.minimumApplied}
-            />
-            <ResultRow
-              label="Order total"
-              value={fmtMoney(quote.orderTotal)}
-              accent="cyan"
-            />
-            {quote.minimumApplied ? (
-              <ResultRow
-                label="Effective per-lead"
-                value={fmtMoney(quote.effectivePerLead, true)}
-                accent="gold"
-              />
-            ) : null}
-
-            {quote.minimumApplied && (
-              <div className="rounded-md border border-ai-gold/40 bg-ai-gold/10 p-4 text-sm text-ai-gold">
-                <div className="font-mono text-[10px] uppercase tracking-[0.18em]">
-                  {fmtMoney(ORDER_MINIMUM)} order minimum
+            <div className="relative">
+              <div className={!quoteUnlocked ? "pointer-events-none select-none" : ""}>
+                <div className="rounded-lg border border-platinum/10 bg-navy-800/60 p-5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-ai-cyan">
+                      {quote.tier}
+                    </span>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-platinum/55">
+                      Range {fmtMoney(FLOOR_PRICE_PER_LEAD, true)} – {fmtMoney(PREMIUM_PRICE_PER_LEAD)}
+                    </span>
+                  </div>
+                  <div className="mt-3 font-display text-5xl font-semibold text-white num">
+                    {fmtMoney(quote.pricePerLead, true)}
+                    <span className="ml-2 align-baseline font-mono text-xs uppercase tracking-[0.2em] text-platinum/50">
+                      / lead
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm text-platinum/65">
+                    {quote.tier === "Real-time premium" &&
+                      "Real-time delivery on high-intent records. Daily push, freshest available, full demographic stack."}
+                    {quote.tier === "Performance" &&
+                      "Recent records with rich appends — strong fit for active outbound and qualified retargeting cohorts."}
+                    {quote.tier === "Volume" &&
+                      "Mid-aged records at scale. Optimized for nurture sequences and look-alike modeling."}
+                    {quote.tier === "Archive bulk" &&
+                      "Older, lightly-appended records at the platform floor — bulk targeting and broad-reach campaigns."}
+                  </p>
                 </div>
-                <p className="mt-1.5 text-platinum/75">
-                  Pulling {formatNumber(quantity)} leads costs us the same operational
-                  effort as pulling thousands. Orders below {fmtMoney(ORDER_MINIMUM)}{" "}
-                  are billed at the minimum — increase quantity to lower your effective
-                  per-lead price.
-                </p>
+
+                <div className="mt-6 space-y-6">
+                  <ResultRow
+                    label="Per-lead price"
+                    value={fmtMoney(quote.pricePerLead, true)}
+                  />
+                  <ResultRow
+                    label="Subtotal"
+                    value={fmtMoney(quote.subtotal)}
+                    dim={quote.minimumApplied}
+                  />
+                  <ResultRow
+                    label="Order total"
+                    value={fmtMoney(quote.orderTotal)}
+                    accent="cyan"
+                  />
+                  {quote.minimumApplied ? (
+                    <ResultRow
+                      label="Effective per-lead"
+                      value={fmtMoney(quote.effectivePerLead, true)}
+                      accent="gold"
+                    />
+                  ) : null}
+
+                  {quote.minimumApplied && (
+                    <div className="rounded-md border border-ai-gold/40 bg-ai-gold/10 p-4 text-sm text-ai-gold">
+                      <div className="font-mono text-[10px] uppercase tracking-[0.18em]">
+                        {fmtMoney(ORDER_MINIMUM)} order minimum
+                      </div>
+                      <p className="mt-1.5 text-platinum/75">
+                        Pulling {formatNumber(quantity)} leads costs us the same operational
+                        effort as pulling thousands. Orders below {fmtMoney(ORDER_MINIMUM)}{" "}
+                        are billed at the minimum — increase quantity to lower your effective
+                        per-lead price.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
+
+              {!quoteUnlocked && (
+                <div className="absolute inset-0 z-20 rounded-xl border border-ai-cyan/40 bg-navy-950/70 p-4 backdrop-blur-[2px] sm:p-5">
+                  <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-ai-cyan">
+                    Unlock Live Quote
+                  </div>
+                  <p className="mb-4 text-sm text-platinum/80">
+                    Price updates are running in real time behind this gate. Enter your details to reveal full pricing and order totals.
+                  </p>
+                  <form onSubmit={unlockPricing} className="grid gap-3 sm:grid-cols-2">
+                    <input
+                      name="name"
+                      required
+                      placeholder="Full name"
+                      className="w-full rounded-md border border-platinum/20 bg-navy-900/80 px-3 py-2 text-sm text-white placeholder:text-platinum/35 focus:border-ai-cyan/60 focus:outline-none"
+                    />
+                    <input
+                      name="email"
+                      type="email"
+                      required
+                      placeholder="Business email"
+                      className="w-full rounded-md border border-platinum/20 bg-navy-900/80 px-3 py-2 text-sm text-white placeholder:text-platinum/35 focus:border-ai-cyan/60 focus:outline-none"
+                    />
+                    <input
+                      name="company"
+                      placeholder="Company"
+                      className="w-full rounded-md border border-platinum/20 bg-navy-900/80 px-3 py-2 text-sm text-white placeholder:text-platinum/35 focus:border-ai-cyan/60 focus:outline-none"
+                    />
+                    <input
+                      name="phone"
+                      type="tel"
+                      placeholder="Phone"
+                      className="w-full rounded-md border border-platinum/20 bg-navy-900/80 px-3 py-2 text-sm text-white placeholder:text-platinum/35 focus:border-ai-cyan/60 focus:outline-none"
+                    />
+                    <div className="sm:col-span-2 flex flex-wrap items-center gap-3">
+                      <Button type="submit" size="sm" disabled={unlocking}>
+                        {unlocking ? "Unlocking…" : "Get Quote to Unlock"}
+                      </Button>
+                      {unlockError ? (
+                        <span className="text-xs text-ai-gold">{unlockError}</span>
+                      ) : (
+                        <span className="text-xs text-platinum/55">We respond within one business day.</span>
+                      )}
+                    </div>
+                  </form>
+                </div>
+              )}
+            </div>
 
             <div className="rounded-lg border border-platinum/10 bg-navy-800/60 p-5">
               <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-ai-cyan">
