@@ -236,14 +236,16 @@ export function LeadValueCalculator() {
               </div>
 
               {!quoteUnlocked && (
-                <div className="absolute inset-0 z-20 rounded-xl border border-ai-cyan/40 bg-navy-950/70 p-4 backdrop-blur-[2px] sm:p-5">
-                  <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-ai-cyan">
-                    Unlock Live Quote
-                  </div>
-                  <p className="mb-4 text-sm text-platinum/80">
-                    Price updates are running in real time behind this gate. Enter your details to reveal full pricing and order totals.
-                  </p>
-                  <form onSubmit={unlockPricing} className="grid gap-3 sm:grid-cols-2">
+                <div className="absolute inset-0 z-20 rounded-xl border border-ai-cyan/40 bg-navy-950/95 p-4 backdrop-blur-md sm:p-5">
+                  <div className="absolute inset-0 rounded-xl bg-[radial-gradient(circle_at_top,rgba(0,189,255,0.16),transparent_40%),linear-gradient(to_bottom,rgba(3,9,24,0.9),rgba(3,9,24,0.97))]" />
+                  <div className="relative mx-auto max-w-xl rounded-lg border border-ai-cyan/30 bg-navy-950/95 p-4 sm:p-5 shadow-[0_0_60px_rgba(0,189,255,0.18)]">
+                    <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-ai-cyan">
+                      Unlock Live Quote
+                    </div>
+                    <p className="mb-4 text-sm text-platinum/80">
+                      Price updates are running in real time behind this gate. Enter your details to reveal full pricing and order totals.
+                    </p>
+                    <form onSubmit={unlockPricing} className="grid gap-3 sm:grid-cols-2">
                     <input
                       name="name"
                       required
@@ -278,7 +280,8 @@ export function LeadValueCalculator() {
                         <span className="text-xs text-platinum/55">We respond within one business day.</span>
                       )}
                     </div>
-                  </form>
+                    </form>
+                  </div>
                 </div>
               )}
             </div>
